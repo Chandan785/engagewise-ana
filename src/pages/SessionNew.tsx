@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { AppHeader } from '@/components/AppHeader';
 import { 
@@ -20,7 +21,10 @@ import {
   Settings2,
   Link as LinkIcon,
   Clock,
-  Save
+  Save,
+  Mail,
+  X,
+  Plus
 } from 'lucide-react';
 
 const sessionSchema = z.object({
@@ -34,12 +38,15 @@ const sessionSchema = z.object({
 type SessionFormData = z.infer<typeof sessionSchema>;
 
 const SessionNew = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertOnLowEngagement, setAlertOnLowEngagement] = useState(true);
   const [attentionThreshold, setAttentionThreshold] = useState(0.7);
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
+  const [emailInput, setEmailInput] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   const form = useForm<SessionFormData>({
     resolver: zodResolver(sessionSchema),
@@ -51,6 +58,47 @@ const SessionNew = () => {
       scheduled_time: '',
     },
   });
+
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
+  const addEmail = () => {
+    const email = emailInput.trim().toLowerCase();
+    setEmailError('');
+    
+    if (!email) return;
+    
+    if (!validateEmail(email)) {
+      setEmailError('Please enter a valid email address');
+      return;
+    }
+    
+    if (inviteEmails.includes(email)) {
+      setEmailError('This email is already added');
+      return;
+    }
+    
+    if (inviteEmails.length >= 50) {
+      setEmailError('Maximum 50 invitations allowed');
+      return;
+    }
+    
+    setInviteEmails([...inviteEmails, email]);
+    setEmailInput('');
+  };
+
+  const removeEmail = (emailToRemove: string) => {
+    setInviteEmails(inviteEmails.filter(e => e !== emailToRemove));
+  };
+
+  const handleEmailKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addEmail();
+    }
+  };
 
   const handleSubmit = async (data: SessionFormData) => {
     if (!user) return;
@@ -84,29 +132,57 @@ const SessionNew = () => {
       .select()
       .single();
 
-    setIsSubmitting(false);
-
     if (error) {
+      setIsSubmitting(false);
       toast({
         variant: 'destructive',
         title: 'Failed to create session',
         description: error.message,
       });
-    } else {
-      toast({
-        title: 'Session created!',
-        description: 'Your engagement tracking session has been created.',
-      });
-
-      // Notify past participants via email (fire and forget)
-      supabase.functions.invoke('notify-session-scheduled', {
-        body: { sessionId: session.id, hostId: user.id },
-      }).catch((err) => {
-        console.error('Failed to send session scheduled notifications:', err);
-      });
-
-      navigate(`/session/${session.id}`);
+      return;
     }
+
+    // Send invitations if any emails were added
+    if (inviteEmails.length > 0) {
+      try {
+        await supabase.functions.invoke('send-session-invite', {
+          body: {
+            sessionId: session.id,
+            emails: inviteEmails,
+            hostName: profile?.full_name || user.email || 'A host',
+            sessionTitle: data.title.trim(),
+            sessionDescription: data.description?.trim(),
+            scheduledAt,
+          },
+        });
+        toast({
+          title: 'Invitations sent!',
+          description: `Sent ${inviteEmails.length} invitation(s) via email.`,
+        });
+      } catch (inviteError) {
+        console.error('Failed to send invitations:', inviteError);
+        toast({
+          variant: 'destructive',
+          title: 'Invitations failed',
+          description: 'Session created but some invitations could not be sent.',
+        });
+      }
+    }
+
+    // Notify past participants via email (fire and forget)
+    supabase.functions.invoke('notify-session-scheduled', {
+      body: { sessionId: session.id, hostId: user.id },
+    }).catch((err) => {
+      console.error('Failed to send session scheduled notifications:', err);
+    });
+
+    setIsSubmitting(false);
+    toast({
+      title: 'Session created!',
+      description: 'Your engagement tracking session has been created.',
+    });
+
+    navigate(`/session/${session.id}`);
   };
 
   return (
@@ -224,7 +300,72 @@ const SessionNew = () => {
             </CardContent>
           </Card>
 
-          {/* Engagement Settings */}
+          {/* Invite Participants */}
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="font-display flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                Invite Participants
+              </CardTitle>
+              <CardDescription>
+                Send email invitations to participants. They'll receive a link to join the session.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="invite_email">Email Addresses</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="invite_email"
+                    type="email"
+                    placeholder="participant@example.com"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    onKeyDown={handleEmailKeyDown}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addEmail}
+                    className="shrink-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {emailError && (
+                  <p className="text-sm text-destructive">{emailError}</p>
+                )}
+                <p className="text-sm text-muted-foreground">
+                  Press Enter or click + to add each email
+                </p>
+              </div>
+
+              {inviteEmails.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Invited ({inviteEmails.length})</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {inviteEmails.map((email) => (
+                      <Badge
+                        key={email}
+                        variant="secondary"
+                        className="flex items-center gap-1 py-1 px-2"
+                      >
+                        {email}
+                        <button
+                          type="button"
+                          onClick={() => removeEmail(email)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="glass">
             <CardHeader>
               <CardTitle className="font-display flex items-center gap-2">

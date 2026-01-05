@@ -1,0 +1,4 @@
+project_id = "vtdeazsommhloapwwxef"
+
+[functions.send-session-reminders]
+verify_jwt = false

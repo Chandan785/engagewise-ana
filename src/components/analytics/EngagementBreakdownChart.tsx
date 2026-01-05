@@ -77,14 +77,8 @@ export const EngagementBreakdownChart = ({ sessionId }: EngagementBreakdownChart
           { metric: 'Screen Focus', value: Math.round((totals.screenFocused / total) * 100), fullMark: 100 },
         ]);
       } else {
-        // Demo data
-        setData([
-          { metric: 'Face Detection', value: 92, fullMark: 100 },
-          { metric: 'Eye Gaze', value: 78, fullMark: 100 },
-          { metric: 'Head Pose', value: 85, fullMark: 100 },
-          { metric: 'Camera On', value: 95, fullMark: 100 },
-          { metric: 'Screen Focus', value: 88, fullMark: 100 },
-        ]);
+        // No data available
+        setData([]);
       }
 
       setLoading(false);
@@ -105,6 +99,12 @@ export const EngagementBreakdownChart = ({ sessionId }: EngagementBreakdownChart
         {loading ? (
           <div className="h-[300px] flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+          </div>
+        ) : data.length === 0 ? (
+          <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
+            <Eye className="h-12 w-12 mb-3 opacity-30" />
+            <p className="font-medium">No breakdown data yet</p>
+            <p className="text-sm">Enable camera tracking during sessions to see metrics</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>

@@ -249,6 +249,60 @@ const LiveSession = () => {
     };
   }, [participantId]);
 
+  const generateSessionReport = async (sessionId: string) => {
+    try {
+      // Fetch metrics for this session
+      const { data: metrics } = await supabase
+        .from('engagement_metrics')
+        .select('*')
+        .eq('session_id', sessionId);
+
+      const { count: participantCount } = await supabase
+        .from('participants')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', sessionId);
+
+      if (metrics && metrics.length > 0) {
+        const avgEngagement = metrics.reduce((sum, m) => sum + (m.attention_score || 0), 0) / metrics.length;
+        const fullyEngaged = metrics.filter(m => m.engagement_level === 'fully_engaged').length;
+        const partiallyEngaged = metrics.filter(m => m.engagement_level === 'partially_engaged').length;
+        const passivelyPresent = metrics.filter(m => m.engagement_level === 'passively_present').length;
+
+        // Calculate session duration
+        const { data: sessionData } = await supabase
+          .from('sessions')
+          .select('started_at, ended_at')
+          .eq('id', sessionId)
+          .single();
+
+        let durationMinutes = 0;
+        if (sessionData?.started_at && sessionData?.ended_at) {
+          durationMinutes = Math.round(
+            (new Date(sessionData.ended_at).getTime() - new Date(sessionData.started_at).getTime()) / 60000
+          );
+        }
+
+        // Insert report
+        await supabase.from('session_reports').insert({
+          session_id: sessionId,
+          total_participants: participantCount || 0,
+          avg_engagement_score: Math.round(avgEngagement * 100),
+          fully_engaged_count: fullyEngaged,
+          partially_engaged_count: partiallyEngaged,
+          passively_present_count: passivelyPresent,
+          total_duration_minutes: durationMinutes,
+          report_data: {
+            totalMetrics: metrics.length,
+            cameraOnRate: metrics.filter(m => m.camera_on).length / metrics.length,
+            faceDetectionRate: metrics.filter(m => m.face_detected).length / metrics.length,
+          },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to generate session report:', err);
+    }
+  };
+
   const endSession = async () => {
     if (!session) return;
 
@@ -269,6 +323,9 @@ const LiveSession = () => {
     } else {
       stopDetection();
       
+      // Generate session report
+      await generateSessionReport(session.id);
+
       // Notify participants via email (fire and forget)
       supabase.functions.invoke('notify-session-ended', {
         body: { sessionId: session.id },

@@ -105,7 +105,14 @@ const Auth = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
+      // Check if user was trying to join a session
+      const joinSessionId = sessionStorage.getItem('joinSessionId');
+      if (joinSessionId) {
+        sessionStorage.removeItem('joinSessionId');
+        navigate(`/join/${joinSessionId}`);
+      } else {
+        navigate('/dashboard');
+      }
     }
   }, [user, navigate]);
 
@@ -153,7 +160,15 @@ const Auth = () => {
         title: 'Welcome back!',
         description: 'You have successfully signed in.',
       });
-      navigate('/dashboard');
+      
+      // Check if user was trying to join a session
+      const joinSessionId = sessionStorage.getItem('joinSessionId');
+      if (joinSessionId) {
+        sessionStorage.removeItem('joinSessionId');
+        navigate(`/join/${joinSessionId}`);
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -174,7 +189,15 @@ const Auth = () => {
       title: 'Welcome back!',
       description: 'You have successfully signed in.',
     });
-    navigate('/dashboard');
+    
+    // Check if user was trying to join a session
+    const joinSessionId = sessionStorage.getItem('joinSessionId');
+    if (joinSessionId) {
+      sessionStorage.removeItem('joinSessionId');
+      navigate(`/join/${joinSessionId}`);
+    } else {
+      navigate('/dashboard');
+    }
   };
 
   const handleMFACancel = async () => {
@@ -203,7 +226,15 @@ const Auth = () => {
         title: 'Account created!',
         description: 'You can now sign in to your account.',
       });
-      navigate('/dashboard');
+      
+      // Check if user was trying to join a session
+      const joinSessionId = sessionStorage.getItem('joinSessionId');
+      if (joinSessionId) {
+        sessionStorage.removeItem('joinSessionId');
+        navigate(`/join/${joinSessionId}`);
+      } else {
+        navigate('/dashboard');
+      }
     }
   };
 

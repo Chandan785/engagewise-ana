@@ -35,14 +35,7 @@ export const SessionComparisonChart = ({ sessions }: SessionComparisonChartProps
     };
   }).reverse();
 
-  // If no real data, show demo
-  const chartData = data.length > 0 && data.some(d => d.duration > 0) ? data : [
-    { name: 'Team Sync', duration: 45, status: 'completed' },
-    { name: 'Sprint Review', duration: 60, status: 'completed' },
-    { name: 'Training', duration: 90, status: 'completed' },
-    { name: 'Workshop', duration: 120, status: 'completed' },
-    { name: 'Standup', duration: 15, status: 'completed' },
-  ];
+  const hasData = data.length > 0 && data.some(d => d.duration > 0);
 
   return (
     <Card className="glass">
@@ -53,38 +46,46 @@ export const SessionComparisonChart = ({ sessions }: SessionComparisonChartProps
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis 
-              dataKey="name" 
-              stroke="hsl(var(--muted-foreground))" 
-              fontSize={11}
-              angle={-45}
-              textAnchor="end"
-              height={60}
-            />
-            <YAxis 
-              stroke="hsl(var(--muted-foreground))" 
-              fontSize={12}
-              tickFormatter={(value) => `${value}m`}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'hsl(var(--card))',
-                border: '1px solid hsl(var(--border))',
-                borderRadius: '8px',
-              }}
-              formatter={(value: number) => [`${value} minutes`, 'Duration']}
-            />
-            <Bar 
-              dataKey="duration" 
-              fill="hsl(var(--primary))" 
-              radius={[4, 4, 0, 0]}
-              name="Duration"
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        {!hasData ? (
+          <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
+            <BarChart3 className="h-12 w-12 mb-3 opacity-30" />
+            <p className="font-medium">No completed sessions yet</p>
+            <p className="text-sm">Complete sessions to see duration comparison</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis 
+                dataKey="name" 
+                stroke="hsl(var(--muted-foreground))" 
+                fontSize={11}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+              />
+              <YAxis 
+                stroke="hsl(var(--muted-foreground))" 
+                fontSize={12}
+                tickFormatter={(value) => `${value}m`}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px',
+                }}
+                formatter={(value: number) => [`${value} minutes`, 'Duration']}
+              />
+              <Bar 
+                dataKey="duration" 
+                fill="hsl(var(--primary))" 
+                radius={[4, 4, 0, 0]}
+                name="Duration"
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

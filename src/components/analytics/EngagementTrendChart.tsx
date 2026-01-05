@@ -77,17 +77,8 @@ export const EngagementTrendChart = ({ sessionId }: EngagementTrendChartProps) =
 
         setData(chartData.slice(-12)); // Last 12 intervals
       } else {
-        // Generate sample data for demo
-        setData([
-          { time: '10:00', engagement: 85, attention: 82 },
-          { time: '10:05', engagement: 78, attention: 75 },
-          { time: '10:10', engagement: 82, attention: 80 },
-          { time: '10:15', engagement: 75, attention: 72 },
-          { time: '10:20', engagement: 88, attention: 85 },
-          { time: '10:25', engagement: 92, attention: 90 },
-          { time: '10:30', engagement: 85, attention: 83 },
-          { time: '10:35', engagement: 78, attention: 76 },
-        ]);
+        // No data available
+        setData([]);
       }
 
       setLoading(false);
@@ -108,6 +99,12 @@ export const EngagementTrendChart = ({ sessionId }: EngagementTrendChartProps) =
         {loading ? (
           <div className="h-[300px] flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+          </div>
+        ) : data.length === 0 ? (
+          <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
+            <TrendingUp className="h-12 w-12 mb-3 opacity-30" />
+            <p className="font-medium">No engagement data yet</p>
+            <p className="text-sm">Data will appear after sessions with tracking enabled</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>

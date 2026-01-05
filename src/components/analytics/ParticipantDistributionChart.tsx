@@ -70,13 +70,8 @@ export const ParticipantDistributionChart = ({ sessionId }: ParticipantDistribut
           { name: 'Away', value: counts.away, color: 'hsl(var(--muted-foreground))' },
         ].filter(d => d.value > 0));
       } else {
-        // Demo data
-        setData([
-          { name: 'Fully Engaged', value: 45, color: 'hsl(var(--success))' },
-          { name: 'Partially Engaged', value: 30, color: 'hsl(var(--warning))' },
-          { name: 'Passively Present', value: 20, color: 'hsl(var(--accent))' },
-          { name: 'Away', value: 5, color: 'hsl(var(--muted-foreground))' },
-        ]);
+        // No data available
+        setData([]);
       }
 
       setLoading(false);
@@ -118,6 +113,12 @@ export const ParticipantDistributionChart = ({ sessionId }: ParticipantDistribut
         {loading ? (
           <div className="h-[300px] flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Loading chart...</div>
+          </div>
+        ) : data.length === 0 ? (
+          <div className="h-[300px] flex flex-col items-center justify-center text-muted-foreground">
+            <Users className="h-12 w-12 mb-3 opacity-30" />
+            <p className="font-medium">No distribution data yet</p>
+            <p className="text-sm">Data will appear after sessions with participants</p>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height={300}>

@@ -2,3 +2,12 @@ project_id = "vtdeazsommhloapwwxef"
 
 [functions.send-session-reminders]
 verify_jwt = false
+
+[functions.notify-session-scheduled]
+verify_jwt = false
+
+[functions.notify-session-ended]
+verify_jwt = false
+
+[functions.notify-consent-withdrawal]
+verify_jwt = false

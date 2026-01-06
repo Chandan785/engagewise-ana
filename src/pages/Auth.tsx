@@ -145,15 +145,23 @@ const Auth = () => {
 
       if (error) throw error;
 
-      // Check if MFA is required
-      const { data: factorsData } = await supabase.auth.mfa.listFactors();
-      const verifiedFactor = factorsData?.totp?.find(factor => factor.status === 'verified');
+      // Check the Authenticator Assurance Level to determine if MFA is needed
+      const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      
+      if (aalError) throw aalError;
 
-      if (verifiedFactor) {
-        setMfaFactorId(verifiedFactor.id);
-        setMfaRequired(true);
-        setIsLoading(false);
-        return;
+      // If current level is aal1 but next level is aal2, MFA verification is required
+      if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal2') {
+        // Get the verified TOTP factor
+        const { data: factorsData } = await supabase.auth.mfa.listFactors();
+        const verifiedFactor = factorsData?.totp?.find(factor => factor.status === 'verified');
+
+        if (verifiedFactor) {
+          setMfaFactorId(verifiedFactor.id);
+          setMfaRequired(true);
+          setIsLoading(false);
+          return;
+        }
       }
 
       toast({

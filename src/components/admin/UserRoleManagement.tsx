@@ -42,6 +42,7 @@ import {
   X,
   Minus,
   Download,
+  Filter,
 } from 'lucide-react';
 
 interface UserWithRoles {
@@ -71,6 +72,7 @@ const UserRoleManagement = () => {
   const [isBulkRemoveDialogOpen, setIsBulkRemoveDialogOpen] = useState(false);
   const [bulkRole, setBulkRole] = useState<string>('');
   const [bulkRemoveRole, setBulkRemoveRole] = useState<string>('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
 
   const sendRoleChangeNotification = async (targetUserId: string, action: 'add' | 'remove', role: string) => {
     try {
@@ -338,11 +340,18 @@ const UserRoleManagement = () => {
     return Array.from(allRoles);
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
+  const filteredUsers = users.filter((user) => {
+    const matchesSearch =
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-  );
+      (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+    
+    const matchesRole =
+      roleFilter === 'all' ||
+      (roleFilter === 'no-roles' && user.roles.length === 0) ||
+      user.roles.includes(roleFilter);
+    
+    return matchesSearch && matchesRole;
+  });
 
   const getRoleBadgeClass = (role: string): string => {
     switch (role) {
@@ -407,7 +416,7 @@ const UserRoleManagement = () => {
             </CardTitle>
             <CardDescription>Assign and remove roles for users</CardDescription>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="outline"
               size="sm"
@@ -417,6 +426,21 @@ const UserRoleManagement = () => {
               <Download className="h-4 w-4 mr-1" />
               Export CSV
             </Button>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-36">
+                <Filter className="h-4 w-4 mr-1" />
+                <SelectValue placeholder="Filter by role" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="no-roles">No Roles</SelectItem>
+                {AVAILABLE_ROLES.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <div className="relative w-full sm:w-48">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input

@@ -41,6 +41,7 @@ import {
   UsersRound,
   X,
   Minus,
+  Download,
 } from 'lucide-react';
 
 interface UserWithRoles {
@@ -360,6 +361,38 @@ const UserRoleManagement = () => {
     return AVAILABLE_ROLES.filter((role) => !user.roles.includes(role));
   };
 
+  const exportToCSV = () => {
+    const headers = ['Name', 'Email', 'User ID', 'Roles', 'Export Date'];
+    const exportDate = new Date().toISOString();
+    
+    const rows = users.map((user) => [
+      user.full_name || 'No name',
+      user.email,
+      user.user_id,
+      user.roles.join('; ') || 'No roles',
+      exportDate,
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) => 
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `user-roles-export-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(`Exported ${users.length} users to CSV`);
+  };
+
   const isAllSelected = filteredUsers.length > 0 && selectedUserIds.size === filteredUsers.length;
   const isSomeSelected = selectedUserIds.size > 0 && selectedUserIds.size < filteredUsers.length;
 
@@ -374,14 +407,25 @@ const UserRoleManagement = () => {
             </CardTitle>
             <CardDescription>Assign and remove roles for users</CardDescription>
           </div>
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportToCSV}
+              disabled={users.length === 0}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Export CSV
+            </Button>
+            <div className="relative w-full sm:w-48">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
         </div>
       </CardHeader>

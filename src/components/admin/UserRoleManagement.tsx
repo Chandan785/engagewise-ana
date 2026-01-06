@@ -380,6 +380,16 @@ const UserRoleManagement = () => {
           return a.roles.length - b.roles.length;
         case 'roles-desc':
           return b.roles.length - a.roles.length;
+        case 'login-recent':
+          if (!a.last_login_at && !b.last_login_at) return 0;
+          if (!a.last_login_at) return 1;
+          if (!b.last_login_at) return -1;
+          return new Date(b.last_login_at).getTime() - new Date(a.last_login_at).getTime();
+        case 'login-oldest':
+          if (!a.last_login_at && !b.last_login_at) return 0;
+          if (!a.last_login_at) return -1;
+          if (!b.last_login_at) return 1;
+          return new Date(a.last_login_at).getTime() - new Date(b.last_login_at).getTime();
         default:
           return 0;
       }
@@ -510,6 +520,8 @@ const UserRoleManagement = () => {
                 <SelectItem value="email-desc">Email (Z-A)</SelectItem>
                 <SelectItem value="roles-asc">Roles (Fewest)</SelectItem>
                 <SelectItem value="roles-desc">Roles (Most)</SelectItem>
+                <SelectItem value="login-recent">Last Login (Recent)</SelectItem>
+                <SelectItem value="login-oldest">Last Login (Oldest)</SelectItem>
               </SelectContent>
             </Select>
             <div className="relative w-full sm:w-48">

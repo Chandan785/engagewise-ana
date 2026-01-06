@@ -104,17 +104,37 @@ const Auth = () => {
   };
 
   useEffect(() => {
-    if (user) {
-      // Check if user was trying to join a session
-      const joinSessionId = sessionStorage.getItem('joinSessionId');
-      if (joinSessionId) {
-        sessionStorage.removeItem('joinSessionId');
-        navigate(`/join/${joinSessionId}`);
-      } else {
-        navigate('/dashboard');
+    const checkAuthAndRedirect = async () => {
+      if (user && !mfaRequired) {
+        // Check if MFA verification is still needed before redirecting
+        const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        
+        // If MFA is required but not yet verified, don't redirect
+        if (aalData?.currentLevel === 'aal1' && aalData?.nextLevel === 'aal2') {
+          // Get the verified TOTP factor and show MFA screen
+          const { data: factorsData } = await supabase.auth.mfa.listFactors();
+          const verifiedFactor = factorsData?.totp?.find(factor => factor.status === 'verified');
+          
+          if (verifiedFactor) {
+            setMfaFactorId(verifiedFactor.id);
+            setMfaRequired(true);
+            return; // Don't redirect, show MFA screen
+          }
+        }
+        
+        // MFA not required or already verified (aal2), safe to redirect
+        const joinSessionId = sessionStorage.getItem('joinSessionId');
+        if (joinSessionId) {
+          sessionStorage.removeItem('joinSessionId');
+          navigate(`/join/${joinSessionId}`);
+        } else {
+          navigate('/dashboard');
+        }
       }
-    }
-  }, [user, navigate]);
+    };
+    
+    checkAuthAndRedirect();
+  }, [user, navigate, mfaRequired]);
 
   const signInForm = useForm<SignInFormData>({
     resolver: zodResolver(signInSchema),

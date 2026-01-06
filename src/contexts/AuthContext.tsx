@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -25,6 +25,7 @@ interface AuthContextType {
   hasRole: (role: UserRole) => boolean;
   isHost: boolean;
   isAdmin: boolean;
+  refreshRoles: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchRoles = async (userId: string) => {
+  const fetchRoles = useCallback(async (userId: string) => {
     const { data } = await supabase
       .from('user_roles')
       .select('role')
@@ -71,8 +72,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (data) {
       setRoles(data.map(r => r.role as UserRole));
+    } else {
+      setRoles([]);
     }
-  };
+  }, []);
+
+  const refreshRoles = useCallback(async () => {
+    if (user?.id) {
+      await fetchRoles(user.id);
+    }
+  }, [user?.id, fetchRoles]);
 
   const updateLastLogin = async (userId: string) => {
     await supabase
@@ -121,7 +130,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchRoles]);
+
+  // Subscribe to realtime changes in user_roles table for the current user
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`user_roles_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_roles',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('Role change detected:', payload);
+          // Refresh roles when any change occurs
+          fetchRoles(user.id);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchRoles]);
 
   const signUp = async (email: string, password: string, fullName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
@@ -175,6 +211,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         hasRole,
         isHost,
         isAdmin,
+        refreshRoles,
       }}
     >
       {children}

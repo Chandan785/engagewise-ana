@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import {
   Users,
@@ -37,6 +38,8 @@ import {
   Loader2,
   Shield,
   UserCog,
+  UsersRound,
+  X,
 } from 'lucide-react';
 
 interface UserWithRoles {
@@ -59,6 +62,11 @@ const UserRoleManagement = () => {
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [roleToRemove, setRoleToRemove] = useState<{ userId: string; role: string; userName: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  
+  // Bulk selection state
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+  const [bulkRole, setBulkRole] = useState<string>('');
 
   const sendRoleChangeNotification = async (targetUserId: string, action: 'add' | 'remove', role: string) => {
     try {
@@ -81,7 +89,6 @@ const UserRoleManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      // Fetch all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('user_id, email, full_name')
@@ -89,14 +96,12 @@ const UserRoleManagement = () => {
 
       if (profilesError) throw profilesError;
 
-      // Fetch all roles
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id, role');
 
       if (rolesError) throw rolesError;
 
-      // Merge profiles with their roles
       const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => ({
         user_id: profile.user_id,
         email: profile.email,
@@ -139,7 +144,6 @@ const UserRoleManagement = () => {
         }
       } else {
         toast.success(`Added ${roleToAdd} role to ${selectedUser.full_name || selectedUser.email}`);
-        // Send email notification
         sendRoleChangeNotification(selectedUser.user_id, 'add', roleToAdd);
         fetchUsers();
       }
@@ -174,7 +178,6 @@ const UserRoleManagement = () => {
       if (error) throw error;
 
       toast.success(`Removed ${role} role`);
-      // Send email notification
       sendRoleChangeNotification(userId, 'remove', role);
       fetchUsers();
     } catch (error) {
@@ -184,6 +187,79 @@ const UserRoleManagement = () => {
       setActionLoading(false);
       setIsRemoveDialogOpen(false);
       setRoleToRemove(null);
+    }
+  };
+
+  // Bulk selection handlers
+  const toggleUserSelection = (userId: string) => {
+    const newSelection = new Set(selectedUserIds);
+    if (newSelection.has(userId)) {
+      newSelection.delete(userId);
+    } else {
+      newSelection.add(userId);
+    }
+    setSelectedUserIds(newSelection);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUserIds.size === filteredUsers.length) {
+      setSelectedUserIds(new Set());
+    } else {
+      setSelectedUserIds(new Set(filteredUsers.map((u) => u.user_id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedUserIds(new Set());
+  };
+
+  const handleBulkAddRole = async () => {
+    if (!bulkRole || selectedUserIds.size === 0) return;
+
+    setActionLoading(true);
+    let successCount = 0;
+    let skipCount = 0;
+
+    try {
+      const selectedUsers = users.filter((u) => selectedUserIds.has(u.user_id));
+      
+      for (const user of selectedUsers) {
+        // Skip if user already has the role
+        if (user.roles.includes(bulkRole)) {
+          skipCount++;
+          continue;
+        }
+
+        const { error } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: user.user_id,
+            role: bulkRole as 'admin' | 'host' | 'participant' | 'viewer',
+          });
+
+        if (!error) {
+          successCount++;
+          // Send notification in background
+          sendRoleChangeNotification(user.user_id, 'add', bulkRole);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Added ${bulkRole} role to ${successCount} user${successCount > 1 ? 's' : ''}`);
+      }
+      if (skipCount > 0) {
+        toast.info(`${skipCount} user${skipCount > 1 ? 's' : ''} already had the ${bulkRole} role`);
+      }
+
+      fetchUsers();
+      clearSelection();
+    } catch (error) {
+      console.error('Error in bulk role assignment:', error);
+      toast.error('Some role assignments failed');
+    } finally {
+      setActionLoading(false);
+      setIsBulkDialogOpen(false);
+      setBulkRole('');
     }
   };
 
@@ -210,6 +286,9 @@ const UserRoleManagement = () => {
     return AVAILABLE_ROLES.filter((role) => !user.roles.includes(role));
   };
 
+  const isAllSelected = filteredUsers.length > 0 && selectedUserIds.size === filteredUsers.length;
+  const isSomeSelected = selectedUserIds.size > 0 && selectedUserIds.size < filteredUsers.length;
+
   return (
     <Card className="glass">
       <CardHeader>
@@ -233,6 +312,36 @@ const UserRoleManagement = () => {
         </div>
       </CardHeader>
       <CardContent>
+        {/* Bulk Action Bar */}
+        {selectedUserIds.size > 0 && (
+          <div className="mb-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <UsersRound className="h-4 w-4 text-primary" />
+              </div>
+              <span className="text-sm font-medium">
+                {selectedUserIds.size} user{selectedUserIds.size > 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={() => setIsBulkDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Assign Role
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSelection}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -242,6 +351,14 @@ const UserRoleManagement = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all"
+                      className={isSomeSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                    />
+                  </TableHead>
                   <TableHead>User</TableHead>
                   <TableHead>Roles</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -250,7 +367,17 @@ const UserRoleManagement = () => {
               <TableBody>
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
-                    <TableRow key={user.user_id}>
+                    <TableRow 
+                      key={user.user_id}
+                      className={selectedUserIds.has(user.user_id) ? 'bg-primary/5' : ''}
+                    >
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedUserIds.has(user.user_id)}
+                          onCheckedChange={() => toggleUserSelection(user.user_id)}
+                          aria-label={`Select ${user.full_name || user.email}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
@@ -308,7 +435,7 @@ const UserRoleManagement = () => {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       {searchQuery ? 'No users found matching your search' : 'No users found'}
                     </TableCell>
                   </TableRow>
@@ -350,6 +477,45 @@ const UserRoleManagement = () => {
             <Button onClick={handleAddRole} disabled={!roleToAdd || actionLoading}>
               {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Add Role
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Assign Role Dialog */}
+      <Dialog open={isBulkDialogOpen} onOpenChange={setIsBulkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UsersRound className="h-5 w-5" />
+              Bulk Role Assignment
+            </DialogTitle>
+            <DialogDescription>
+              Assign a role to {selectedUserIds.size} selected user{selectedUserIds.size > 1 ? 's' : ''}. 
+              Users who already have the role will be skipped.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={bulkRole} onValueChange={setBulkRole}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a role to assign" />
+              </SelectTrigger>
+              <SelectContent>
+                {AVAILABLE_ROLES.map((role) => (
+                  <SelectItem key={role} value={role} className="capitalize">
+                    {role}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBulkDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleBulkAddRole} disabled={!bulkRole || actionLoading}>
+              {actionLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Assign to {selectedUserIds.size} User{selectedUserIds.size > 1 ? 's' : ''}
             </Button>
           </DialogFooter>
         </DialogContent>

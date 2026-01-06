@@ -198,13 +198,20 @@ const UserRoleManagement = () => {
   const handleRemoveRole = async (userId: string, role: string) => {
     setActionLoading(true);
     try {
-      const { error } = await supabase
+      const { data, error, count } = await supabase
         .from('user_roles')
         .delete()
         .eq('user_id', userId)
-        .eq('role', role as 'admin' | 'host' | 'participant' | 'viewer');
+        .eq('role', role as 'admin' | 'host' | 'participant' | 'viewer')
+        .select();
 
       if (error) throw error;
+
+      // Check if any row was actually deleted
+      if (!data || data.length === 0) {
+        toast.error('Failed to remove role - no permission or role not found');
+        return;
+      }
 
       toast.success(`Removed ${role} role`);
       sendRoleChangeNotification(userId, 'remove', role);
@@ -317,16 +324,19 @@ const UserRoleManagement = () => {
           continue;
         }
 
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('user_roles')
           .delete()
           .eq('user_id', user.user_id)
-          .eq('role', bulkRemoveRole as 'admin' | 'host' | 'participant' | 'viewer');
+          .eq('role', bulkRemoveRole as 'admin' | 'host' | 'participant' | 'viewer')
+          .select();
 
-        if (!error) {
+        if (!error && data && data.length > 0) {
           successCount++;
           // Send notification in background
           sendRoleChangeNotification(user.user_id, 'remove', bulkRemoveRole);
+        } else if (!error) {
+          skipCount++;
         }
       }
 

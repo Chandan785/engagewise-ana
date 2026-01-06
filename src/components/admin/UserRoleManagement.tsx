@@ -44,6 +44,8 @@ import {
   Download,
   Filter,
   ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 interface UserWithRoles {
@@ -75,6 +77,10 @@ const UserRoleManagement = () => {
   const [bulkRemoveRole, setBulkRemoveRole] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('name-asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const PAGE_SIZE_OPTIONS = [5, 10, 25, 50];
 
   const sendRoleChangeNotification = async (targetUserId: string, action: 'add' | 'remove', role: string) => {
     try {
@@ -374,6 +380,17 @@ const UserRoleManagement = () => {
       }
     });
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, roleFilter, sortBy, pageSize]);
+
   const getRoleBadgeClass = (role: string): string => {
     switch (role) {
       case 'admin':
@@ -423,8 +440,22 @@ const UserRoleManagement = () => {
     toast.success(`Exported ${users.length} users to CSV`);
   };
 
-  const isAllSelected = filteredUsers.length > 0 && selectedUserIds.size === filteredUsers.length;
-  const isSomeSelected = selectedUserIds.size > 0 && selectedUserIds.size < filteredUsers.length;
+  const isAllSelected = paginatedUsers.length > 0 && paginatedUsers.every((u) => selectedUserIds.has(u.user_id));
+  const isSomeSelected = paginatedUsers.some((u) => selectedUserIds.has(u.user_id)) && !isAllSelected;
+
+  const handleToggleSelectAllOnPage = () => {
+    if (isAllSelected) {
+      // Deselect all on current page
+      const newSelection = new Set(selectedUserIds);
+      paginatedUsers.forEach((u) => newSelection.delete(u.user_id));
+      setSelectedUserIds(newSelection);
+    } else {
+      // Select all on current page
+      const newSelection = new Set(selectedUserIds);
+      paginatedUsers.forEach((u) => newSelection.add(u.user_id));
+      setSelectedUserIds(newSelection);
+    }
+  };
 
   return (
     <Card className="glass">
@@ -535,102 +566,168 @@ const UserRoleManagement = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="rounded-lg border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <Checkbox
-                      checked={isAllSelected}
-                      onCheckedChange={toggleSelectAll}
-                      aria-label="Select all"
-                      className={isSomeSelected ? 'data-[state=checked]:bg-primary/50' : ''}
-                    />
-                  </TableHead>
-                  <TableHead>User</TableHead>
-                  <TableHead>Roles</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <TableRow 
-                      key={user.user_id}
-                      className={selectedUserIds.has(user.user_id) ? 'bg-primary/5' : ''}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedUserIds.has(user.user_id)}
-                          onCheckedChange={() => toggleUserSelection(user.user_id)}
-                          aria-label={`Select ${user.full_name || user.email}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Users className="h-4 w-4 text-primary" />
+          <>
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={isAllSelected}
+                        onCheckedChange={handleToggleSelectAllOnPage}
+                        aria-label="Select all on page"
+                        className={isSomeSelected ? 'data-[state=checked]:bg-primary/50' : ''}
+                      />
+                    </TableHead>
+                    <TableHead>User</TableHead>
+                    <TableHead>Roles</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedUsers.length > 0 ? (
+                    paginatedUsers.map((user) => (
+                      <TableRow 
+                        key={user.user_id}
+                        className={selectedUserIds.has(user.user_id) ? 'bg-primary/5' : ''}
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedUserIds.has(user.user_id)}
+                            onCheckedChange={() => toggleUserSelection(user.user_id)}
+                            aria-label={`Select ${user.full_name || user.email}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center">
+                              <Users className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-foreground">
+                                {user.full_name || 'No name'}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-foreground">
-                              {user.full_name || 'No name'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1.5">
-                          {user.roles.length > 0 ? (
-                            user.roles.map((role) => (
-                              <Badge
-                                key={role}
-                                variant="outline"
-                                className={`capitalize gap-1 ${getRoleBadgeClass(role)}`}
-                              >
-                                {role === 'admin' && <Shield className="h-3 w-3" />}
-                                {role}
-                                <button
-                                  onClick={() => confirmRemoveRole(user.user_id, role, user.full_name || user.email)}
-                                  className="ml-1 hover:bg-background/20 rounded-full p-0.5"
-                                  disabled={actionLoading}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1.5">
+                            {user.roles.length > 0 ? (
+                              user.roles.map((role) => (
+                                <Badge
+                                  key={role}
+                                  variant="outline"
+                                  className={`capitalize gap-1 ${getRoleBadgeClass(role)}`}
                                 >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </Badge>
-                            ))
-                          ) : (
-                            <span className="text-sm text-muted-foreground">No roles</span>
+                                  {role === 'admin' && <Shield className="h-3 w-3" />}
+                                  {role}
+                                  <button
+                                    onClick={() => confirmRemoveRole(user.user_id, role, user.full_name || user.email)}
+                                    className="ml-1 hover:bg-background/20 rounded-full p-0.5"
+                                    disabled={actionLoading}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-sm text-muted-foreground">No roles</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {getAvailableRolesForUser(user).length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsDialogOpen(true);
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Role
+                            </Button>
                           )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {getAvailableRolesForUser(user).length > 0 && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setIsDialogOpen(true);
-                            }}
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Role
-                          </Button>
-                        )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        {searchQuery || roleFilter !== 'all' ? 'No users found matching your filters' : 'No users found'}
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                      {searchQuery ? 'No users found matching your search' : 'No users found'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination Controls */}
+            {filteredUsers.length > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Show</span>
+                  <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+                    <SelectTrigger className="w-16 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAGE_SIZE_OPTIONS.map((size) => (
+                        <SelectItem key={size} value={size.toString()}>
+                          {size}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span>per page</span>
+                  <span className="ml-2">
+                    · Showing {startIndex + 1}-{Math.min(endIndex, filteredUsers.length)} of {filteredUsers.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    First
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="px-3 text-sm">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    Last
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
 

@@ -46,13 +46,17 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  AlertCircle,
 } from 'lucide-react';
+import { formatDistanceToNow, differenceInHours } from 'date-fns';
 
 interface UserWithRoles {
   user_id: string;
   email: string;
   full_name: string | null;
   roles: string[];
+  last_login_at: string | null;
 }
 
 const AVAILABLE_ROLES = ['admin', 'host', 'participant', 'viewer'] as const;
@@ -105,7 +109,7 @@ const UserRoleManagement = () => {
     try {
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, email, full_name')
+        .select('user_id, email, full_name, last_login_at')
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -120,6 +124,7 @@ const UserRoleManagement = () => {
         user_id: profile.user_id,
         email: profile.email,
         full_name: profile.full_name,
+        last_login_at: profile.last_login_at,
         roles: (roles || [])
           .filter((r) => r.user_id === profile.user_id)
           .map((r) => r.role),
@@ -580,6 +585,7 @@ const UserRoleManagement = () => {
                       />
                     </TableHead>
                     <TableHead>User</TableHead>
+                    <TableHead>Session Status</TableHead>
                     <TableHead>Roles</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -610,6 +616,45 @@ const UserRoleManagement = () => {
                               <p className="text-sm text-muted-foreground">{user.email}</p>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const SESSION_EXPIRY_HOURS = 168; // 7 days default
+                            if (!user.last_login_at) {
+                              return (
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <AlertCircle className="h-4 w-4" />
+                                  <span className="text-sm">Never logged in</span>
+                                </div>
+                              );
+                            }
+                            const lastLogin = new Date(user.last_login_at);
+                            const hoursSinceLogin = differenceInHours(new Date(), lastLogin);
+                            const isExpired = hoursSinceLogin >= SESSION_EXPIRY_HOURS;
+                            const hoursRemaining = SESSION_EXPIRY_HOURS - hoursSinceLogin;
+                            
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Clock className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm">
+                                    {formatDistanceToNow(lastLogin, { addSuffix: true })}
+                                  </span>
+                                </div>
+                                <Badge 
+                                  variant={isExpired ? "destructive" : hoursRemaining < 24 ? "secondary" : "outline"}
+                                  className="text-xs"
+                                >
+                                  {isExpired 
+                                    ? "Session expired" 
+                                    : hoursRemaining < 24 
+                                      ? `Expires in ${hoursRemaining}h`
+                                      : `Expires in ${Math.floor(hoursRemaining / 24)}d`
+                                  }
+                                </Badge>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1.5">
@@ -655,7 +700,7 @@ const UserRoleManagement = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         {searchQuery || roleFilter !== 'all' ? 'No users found matching your filters' : 'No users found'}
                       </TableCell>
                     </TableRow>

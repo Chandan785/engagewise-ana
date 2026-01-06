@@ -74,6 +74,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateLastLogin = async (userId: string) => {
+    await supabase
+      .from('profiles')
+      .update({ last_login_at: new Date().toISOString() })
+      .eq('user_id', userId);
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -86,6 +93,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setTimeout(() => {
             fetchProfile(session.user.id, session.user.user_metadata);
             fetchRoles(session.user.id);
+            // Update last login on sign in events
+            if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+              updateLastLogin(session.user.id);
+            }
           }, 0);
         } else {
           setProfile(null);
